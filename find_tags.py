@@ -85,12 +85,16 @@ class PiCameraSource(Source):
         self.cam = picamera.PiCamera()
 
     def configure(self, **settings):
+        if not len(settings):
+            return
+        print("Setting picamera settings...")
         for k in settings:
             if k in self._special_settings:
                 v = self._special_settings[k](settings[k])
             else:
                 t = type(getattr(self.cam, k))
                 v = t(settings[k])  # convert new setting to correct type
+            print("\t%s = %s" % (k, v))
             setattr(self.cam, k, v)
 
     def __iter__(self):
@@ -109,6 +113,10 @@ def make_source(source):
             return VideoSource(source)
         else:
             return ImageSource(source)
+    elif source == 'picamera':  # picamera
+        if not has_picamera:
+            raise RuntimeError("picamera is not available")
+        return PiCameraSource()
     elif 'camera' in source:  # opencv cap
         if ':' in source:
             _, vid_id = source.split(':')
@@ -116,10 +124,6 @@ def make_source(source):
         else:
             vid_id = -1
         return VideoSource(vid_id)
-    elif source == 'picamera':  # picamera
-        if not has_picamera:
-            raise RuntimeError("picamera is not available")
-        return PiCameraSource()
     else:  # unknown source
         raise ValueError("Unknown source: %s" % source)
 
@@ -174,13 +178,14 @@ class TagFinder:
             self.areas_max = max(self.areas_max, areas.max())
         self.n_frames += 1
 
-    def print_stats(self):
-        print("Parameters:")
-        for attr in sorted(dir(self.aruco_params)):
-            if attr[0] == '_' or attr == 'create':
-                continue
-            print("\t%s=%s" % (attr, getattr(self.aruco_params, attr)))
-        print("===")
+    def print_stats(self, short=False):
+        if not short:
+            print("Parameters:")
+            for attr in sorted(dir(self.aruco_params)):
+                if attr[0] == '_' or attr == 'create':
+                    continue
+                print("\t%s=%s" % (attr, getattr(self.aruco_params, attr)))
+            print("===")
         print("Processed %s frames" % (self.n_frames, ))
         if self.n_frames == 0:
             return
@@ -251,7 +256,10 @@ def main():
     try:
         for im in source:
             tf.process_grayscale_image(im)
-            if not args.headless:
+            if args.headless:
+                if tf.n_frames % 5 == 0:
+                    tf.print_stats(short=True)
+            else:
                 canvas = draw_tags(im, tf.tags_results)
                 cv2.imshow('win', canvas[::args.downsample, ::args.downsample])
                 k = cv2.waitKey(30)
@@ -260,6 +268,8 @@ def main():
                 elif k == ord('r'):
                     print("Resetting stats")
                     tf.reset_stats()
+                elif k == ord('p'):
+                    tf.print_stats()
         # no images left, sit on last frame after printing stats
         tf.print_stats()
         while True:
