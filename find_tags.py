@@ -33,8 +33,7 @@ except ImportError:
 
 class Source:
     def __iter__(self):
-        # yield frames or raise StopIterration
-        raise StopIteration
+        return
 
 
 class ImageSource(Source):
@@ -43,7 +42,6 @@ class ImageSource(Source):
 
     def __iter__(self):
         yield cv2.imread(self.fn, cv2.IMREAD_GRAYSCALE)
-        #raise StopIteration
 
 
 class VideoSource(Source):
@@ -54,14 +52,14 @@ class VideoSource(Source):
         while True:
             r, im = self.cap.read()
             if not r:
-                raise StopIteration
+                break
             yield cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
 
 def convert_resolution(v):
     if isinstance(v, str):
         for sep in ',xX \t':
-            tks = v.split(',')
+            tks = v.split(sep)
             if len(tks) == 2:
                 break
         if len(tks) != 2:
